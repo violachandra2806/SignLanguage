@@ -1,0 +1,14 @@
+path: ./data/raw
+train: train/images
+val: valid/images
+test: test/images
+
+nc: 20
+names: ['Ayah', 'Halo', 'Kakak', 'Minum', 'Rumah', 'Sama-sama', 'Sehat', 'Teman', 'Terima kasih', 'Tidur', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']
+
+roboflow:
+  workspace: tugasakhirvidia
+  project: deteksi-bahasa-isyarat-indonesia
+  version: 4
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/tugasakhirvidia/deteksi-bahasa-isyarat-indonesia/dataset/4
