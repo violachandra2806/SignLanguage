@@ -5,6 +5,89 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time
 
+# Optional: Google Translate TTS (gTTS) + playback using playsound
+# Install with: pip install gTTS playsound==1.2.2
+try:
+    from gtts import gTTS
+    from playsound import playsound
+except Exception:
+    gTTS = None
+    playsound = None
+    print("⚠️ gTTS or playsound not installed. Voice features will be disabled. Install with 'pip install gTTS playsound==1.2.2'")
+
+import tempfile
+import threading
+
+# TTS helpers: cache mp3 files in temp dir and play in background threads
+_tts_cache_dir = os.path.join(tempfile.gettempdir(), "sibi_tts_cache")
+os.makedirs(_tts_cache_dir, exist_ok=True)
+_last_spoken = {}  # text -> timestamp
+# If True, attempt Windows fallback playback using os.startfile() when playsound fails or if you enable it.
+tts_use_startfile_fallback = False
+
+
+def _tts_filename_for(text, lang='id'):
+    safe = "".join(c if c.isalnum() else "_" for c in text)[:200]
+    return os.path.join(_tts_cache_dir, f"{safe}_{lang}.mp3")
+
+
+def speak(text, lang='id', cooldown=2.0):
+    """Speak text using gTTS (non-blocking). Uses a cooldown per text to avoid repeats.
+
+    This function now prints diagnostic messages so you can see if generation/playback failed.
+    """
+    if gTTS is None or playsound is None:
+        print("⚠️ TTS or playback packages missing (gTTS/playsound). Install with: pip install gTTS playsound==1.2.2")
+        return
+    now = time.time()
+    last = _last_spoken.get(text, 0)
+    if now - last < cooldown:
+        # Skip repeated announcements within cooldown
+        # print(f"Skipping speak (cooldown): {text}")
+        return
+    _last_spoken[text] = now
+    filename = _tts_filename_for(text, lang)
+    if not os.path.exists(filename):
+        try:
+            print(f"🔊 Generating TTS for: '{text}' -> {filename}")
+            tts = gTTS(text=text, lang=lang)
+            tts.save(filename)
+            print(f"✅ Saved TTS file: {filename}")
+        except Exception as e:
+            print(f"⚠️ TTS error: {e}")
+            return
+
+    def _play():
+        try:
+            # Double-check file exists and is non-empty
+            if not os.path.exists(filename):
+                print(f"⚠️ TTS file does not exist: {filename}")
+                return
+            size = os.path.getsize(filename)
+            print(f"🔎 TTS file size: {size} bytes")
+            if size == 0:
+                print("⚠️ TTS file is empty")
+                return
+
+            print(f"▶️ Playing (playsound): {filename}")
+            playsound(filename)
+            print(f"⏹️ Finished playing (playsound): {filename}")
+        except Exception as e:
+            print(f"⚠️ Play error (playsound): {e}")
+            # Try Windows startfile fallback if available
+            try:
+                if os.name == 'nt':
+                    print(f"🔁 Attempting Windows fallback (os.startfile): {filename}")
+                    os.startfile(filename)
+                    print(f"⏹️ Windows fallback started: {filename}")
+                else:
+                    print("⚠️ No fallback available on this OS. Consider installing a reliable audio player or using pydub/simpleaudio.")
+            except Exception as e2:
+                print(f"⚠️ Fallback play error: {e2}")
+
+    threading.Thread(target=_play, daemon=True).start()
+
+
 class SIBIDetector:
     def __init__(self, model_path='runs/detect/sibi_guaranteed/weights/best.pt'):
         self.model = YOLO(model_path)
@@ -137,12 +220,16 @@ def test_webcam_realtime():
     print("Press 'q' to quit")
     print("Press 's' to save current frame")
     print("Press 'c' to change confidence threshold (current: 0.5)")
-    
+    print("Press 'v' to toggle voice on/off (default: ON)")
+    print("Press 'p' to toggle Windows fallback playback (os.startfile) - useful if playsound is silent")
+
     confidence_threshold = 0.5
+    voice_enabled = True
+    tts_lang = 'id'  # change to 'en' if you prefer English
     frame_count = 0
     fps = 0
     prev_time = 0
-    
+
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -180,6 +267,21 @@ def test_webcam_realtime():
             cv2.putText(frame_with_detections, text, (10, y_offset), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
             y_offset += 30
+
+        # Announce detected classes (non-blocking, uses gTTS). Speak top 3 unique classes.
+        if voice_enabled and detections:
+            announced = set()
+            for det in detections[:3]:
+                cls = det['class']
+                if cls not in announced:
+                    print(f"Announcing: {cls}")
+                    speak(cls, lang=tts_lang)
+                    announced.add(cls)  # avoid repeating the same class immediately
+
+        # Show voice status on screen
+        frame_h = frame_with_detections.shape[0]
+        cv2.putText(frame_with_detections, f"Voice: {'ON' if voice_enabled else 'OFF'}", (10, frame_h - 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0) if voice_enabled else (0, 0, 255), 2)
         
         # Display the frame
         cv2.imshow('SIBI Sign Language Detection - Real-time', frame_with_detections)
@@ -204,6 +306,22 @@ def test_webcam_realtime():
                     print("Please enter a value between 0.1 and 0.9")
             except:
                 print("Invalid input. Keeping current threshold.")
+        elif key == ord('v'):
+            # Toggle voice on/off
+            voice_enabled = not voice_enabled
+            print(f"Voice {'enabled' if voice_enabled else 'disabled'}")
+        elif key == ord('t'):
+            # TTS test
+            print("🔊 Testing TTS...")
+            try:
+                speak("tes suara", lang=tts_lang)
+            except Exception as e:
+                print(f"⚠️ TTS test error: {e}")
+        elif key == ord('p'):
+            # Toggle Windows fallback
+            global tts_use_startfile_fallback
+            tts_use_startfile_fallback = not tts_use_startfile_fallback
+            print(f"Windows fallback playback {'enabled' if tts_use_startfile_fallback else 'disabled'} (you can also force os.startfile via error fallback)")
         elif key == ord('+'):  # Increase confidence with '+' key
             confidence_threshold = min(0.9, confidence_threshold + 0.05)
             print(f"Confidence threshold increased to: {confidence_threshold}")
