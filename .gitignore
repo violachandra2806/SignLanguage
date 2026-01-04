@@ -3,6 +3,5 @@
 /trained/
 /logs/
 /__pycache__/
-*.pt
 *.pth
 *.h5
