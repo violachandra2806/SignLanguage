@@ -64,5 +64,7 @@ if __name__ == '__main__':
     print("📍 Endpoints:")
     print("   POST /SignLanguage/translate - Translate video to SIBI signs")
     print("   GET  /SignLanguage/health    - Health check")
-    
-    app.run(host='0.0.0.0', port=5001, debug=True)
+
+    # Honor platform-provided port (e.g., Render/Railway/Fly/Cloud Run)
+    port = int(os.getenv("PORT", 5001))
+    app.run(host='0.0.0.0', port=port, debug=True)
