@@ -4,7 +4,7 @@ import os
 
 app = Flask(__name__)
 
-@app.route('/api/translate', methods=['POST'])
+@app.route('/SignLanguage/translate', methods=['POST'])
 def translate_video():
     """API endpoint for SIBI translation"""
     try:
@@ -50,7 +50,7 @@ def translate_video():
             "data": []
         }), 500
 
-@app.route('/api/health', methods=['GET'])
+@app.route('/SignLanguage/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
     return jsonify({
@@ -62,7 +62,7 @@ def health_check():
 if __name__ == '__main__':
     print("🚀 Starting SIBI Translation API Server...")
     print("📍 Endpoints:")
-    print("   POST /api/translate - Translate video to SIBI signs")
-    print("   GET  /api/health    - Health check")
+    print("   POST /SignLanguage/translate - Translate video to SIBI signs")
+    print("   GET  /SignLanguage/health    - Health check")
     
     app.run(host='0.0.0.0', port=5001, debug=True)
